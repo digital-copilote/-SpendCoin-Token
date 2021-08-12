@@ -40,4 +40,33 @@ describe("SPC_Token", function () {
     
     expect(await token.balanceOf(owneraddr)).to.equal(totalSupply);
   });
+
+  it("Should return the snapshot id", async function () {
+    // token.snapshot().then(snapshotId => expect(snapshotId).to.equal(0));
+
+    const snapshotTx = await token.snapshot();
+    // wait until the transaction is mined
+    await snapshotTx.wait();
+    expect(await token.getCurrentSnapshotId()).to.equal(1);
+    // expect(snapshotId.toString()).to.equal("1");
+    // expect(snapshotId).to.equal(1);
+  });
 });
+
+/*
+    contractAsSigner2.buyTokens(
+      {
+        value: ethers.utils.parseEther("10.0")
+      }
+    ).then(async () => expect((await ico.contributorsToTokenAmount(addr3.address)).toString()).to.equal("15000000000000000000000"))
+  })
+
+----------
+
+    const finalizeTx = await token.snapshot()
+
+    await finalizeTx.wait();
+
+    expect(await token.getCurrentSnapshotId()).to.equal(1)
+
+*/
