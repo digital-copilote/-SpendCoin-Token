@@ -1,1 +1,2 @@
-# -SpendCoin-Token
+# SpendCoin-Token
+digital-copilote / SpendCoin-Token
