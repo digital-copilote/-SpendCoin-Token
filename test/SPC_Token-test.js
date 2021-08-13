@@ -9,13 +9,14 @@ let owneraddr;
 let contractAsSigner0, contractAsSigner1, contractAsSigner2;
 
 beforeEach(async function () {
-  // Get the ContractFactory and Signers here.
-  SPC_Token = await ethers.getContractFactory("SPC_Token");
-  token = await SPC_Token.deploy();
-  await token.deployed();
-
   [owner, addr1, addr2, addr3, ...addrs] = await ethers.getSigners();
   owneraddr = owner.address;
+  
+  // Get the ContractFactory and Signers here.
+  SPC_Token = await ethers.getContractFactory("SPC_Token");
+  token = await SPC_Token.deploy(owneraddr);
+  await token.deployed();
+
   console.log("owner address: " + owneraddr);
 
   contractAsSigner0 = token.connect(owner);
@@ -42,7 +43,11 @@ describe("SPC_Token", function () {
   });
 
   it("Should return the snapshot id", async function () {
+    expect(await token.getCurrentSnapshotId()).to.equal(0);
     // token.snapshot().then(snapshotId => expect(snapshotId).to.equal(0));
+
+    await network.provider.send("evm_increaseTime", [604800+2])
+    await network.provider.send("evm_mine") // this one will have 10s more
 
     const snapshotTx = await token.snapshot();
     // wait until the transaction is mined
