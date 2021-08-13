@@ -52,7 +52,8 @@ describe("SPC_Token", function () {
     const snapshotTx = await token.snapshot();
     // wait until the transaction is mined
     await snapshotTx.wait();
-    expect(await token.getCurrentSnapshotId()).to.equal(1);
+    let snapshotId = await token.getCurrentSnapshotId();
+    expect(snapshotId).to.equal(1);
     // expect(snapshotId.toString()).to.equal("1");
     // expect(snapshotId).to.equal(1);
   });
