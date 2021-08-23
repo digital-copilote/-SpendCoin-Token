@@ -73,14 +73,14 @@ describe("Gateway SPCB", function () {
 
 describe("Gateway functions", function () {
 	it("Should return the weekNumber", async function () {
-		expect(await gateway.calcWeekNumber()).to.equal(2);
+		expect(await gateway.getWeekNumber()).to.equal(0);
 	});
 	
 	it("Should create the snapshot in gateway", async function () {
 		const calcReward = await gateway.calcSpcbReward(addr1.address, 100);
 		await calcReward.wait();
 
-		const weekNumber = await gateway.calcWeekNumber();
+		const weekNumber = await gateway.getWeekNumber();
 		expect(await gateway.existDataSnapshop(weekNumber)).to.be.true;
 	});
 	
@@ -109,7 +109,7 @@ describe("Gateway functions", function () {
 		const calcReward = await gateway.calcSpcbReward(addr1.address, 100);
 		await calcReward.wait();
 
-		const weekNumber = await gateway.calcWeekNumber();
+		const weekNumber = await gateway.getWeekNumber();
 		const dataSnapshot = await gateway.dataSnapshots(weekNumber);
 		expect(dataSnapshot[2]).to.equal("2000000000000000000");
 	});

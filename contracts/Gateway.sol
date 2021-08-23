@@ -43,9 +43,10 @@ contract Gateway {
 	}
 
 	/// @notice calc week number from 01/08/2021
-	function calcWeekNumber() public view  returns (uint256) {
-		uint date = block.timestamp - time20210802;
-		return date /  (7 * 24 * 3600); // week len: 7 * 24 * 60 *60
+	function getWeekNumber() public view  returns (uint256) {
+		return spc_token.calcWeekNumber();
+		// uint date = block.timestamp - time20210802;
+		// return date /  (7 * 24 * 3600); // week len: 7 * 24 * 60 *60
 	}
 
 	function existDataSnapshop(uint256 _snapshotId) public view returns (bool) {
@@ -53,7 +54,7 @@ contract Gateway {
 	}
 
 	function newSnapshot() public returns (uint256) {
-		uint newId = calcWeekNumber();
+		uint newId = getWeekNumber();
 		createDataSnapshot(newId);
 		//spc_token.newSnapshot();
 		return newId;
@@ -107,7 +108,7 @@ contract Gateway {
 		uint result = (_usdcAmount * pcentReward) * 10**16;
 		spcbReward(_account, result);
 		// total reward holder in week
-		uint snapshotId = calcWeekNumber();
+		uint snapshotId = getWeekNumber();
 		if (!existDataSnapshop(snapshotId)) {
 			snapshotId = newSnapshot();
 		}
@@ -144,7 +145,7 @@ contract Gateway {
 
 	/// @notice calc claim on all week before last calc claim
 	function initClaim() public {
-		uint actualWeek = calcWeekNumber();
+		uint actualWeek = getWeekNumber();
 
 		if (!existDataSnapshop(actualWeek)) {
 			createDataSnapshot(actualWeek);
@@ -203,7 +204,7 @@ contract Gateway {
 	function holderClaim(address _account) private returns(uint) {
 		// get last week claim
 		uint lastWeekClaim = accountLastClaim[_account];
-		uint actualWeek = calcWeekNumber();
+		uint actualWeek = getWeekNumber();
 		uint totalClaim = 0;
 
 		// calc claim on all week before last claim
