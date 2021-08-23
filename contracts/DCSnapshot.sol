@@ -15,7 +15,8 @@ abstract contract DCSnapshot is ERC20 {
 		uint256 minValue;
 	}
 
-	uint time20210802 = block.timestamp; //1627855200; // lundi 2 août 2021 00:00:00 GMT+02:00
+	uint time_start = block.timestamp; //1627855200; // lundi 2 août 2021 00:00:00 GMT+02:00
+	uint period = 604800; // time delay between 2 snapshots / week len: 7 * 24 * 60 * 60 = 604800
 
 	mapping(uint => mapping (address => AccountsSnapshots)) private _mapWeeks; // weekNumber => account => AccountsSnapshots
 	mapping(uint => bool) private _existSnapshot; // weekNumber => exist
@@ -24,8 +25,9 @@ abstract contract DCSnapshot is ERC20 {
 
 	/// @notice calc week number from 01/08/2021
 	function calcWeekNumber() public view  returns (uint256) {
-		uint date = block.timestamp - time20210802;
-		return date / (7 * 24 * 3600); // week len: 7 * 24 * 60 * 60
+		uint date = block.timestamp - time_start;
+		//return date / (7 * 24 * 3600);
+		return date / period;
 	}
 
 	/// @notice check if a snapshot exist with this id
@@ -63,11 +65,14 @@ abstract contract DCSnapshot is ERC20 {
 		address to,
 		uint256 amount
 	) internal virtual override {
-		// transfer only, no update on burn and mint
-		if (from != address(0) && to != address(0)) { 
+		if (from != address(0)) {
+            // burn or transfer
 			_updateSnapshot(from, balanceOf(from) - amount);
-			_updateSnapshot(to, balanceOf(to));
-		}
+        }
+		if (to != address(0)) {
+            // mint or transfer
+            _updateSnapshot(to, balanceOf(to));
+        }
 	}
 
 	function _updateSnapshot(address _account, uint256 _currentValue) private {

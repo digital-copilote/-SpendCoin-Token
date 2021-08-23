@@ -115,3 +115,5 @@ scripts/sample-script.js
 test/sample-test.js
 
 bin/
+.vscode/
+soljson*.js

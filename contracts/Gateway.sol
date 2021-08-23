@@ -24,7 +24,6 @@ contract Gateway {
 		//uint dotValue;
 	}
 
-	uint time20210802 = 1627855200; // lundi 2 août 2021 00:00:00 GMT+02:00
 	uint pcentReward = 2; // pcent reward default : 2%
 	uint minimumHolding = 0; // minimum for holder to be holder
 	// boucle no holders
@@ -45,8 +44,6 @@ contract Gateway {
 	/// @notice calc week number from 01/08/2021
 	function getWeekNumber() public view  returns (uint256) {
 		return spc_token.calcWeekNumber();
-		// uint date = block.timestamp - time20210802;
-		// return date /  (7 * 24 * 3600); // week len: 7 * 24 * 60 *60
 	}
 
 	function existDataSnapshop(uint256 _snapshotId) public view returns (bool) {

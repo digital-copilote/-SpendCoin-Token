@@ -42,20 +42,61 @@ describe("SPC_Token", function () {
     expect(await token.balanceOf(owneraddr)).to.equal(totalSupply);
   });
 
-  xit("Should return the snapshot id", async function () {
-    expect(await token.getCurrentSnapshotId()).to.equal(0);
-    // token.snapshot().then(snapshotId => expect(snapshotId).to.equal(0));
+	it("Should return the weekNumber", async function () {
+		expect(await token.calcWeekNumber()).to.equal(0);
+    let period = 604800;
 
-    await network.provider.send("evm_increaseTime", [604800+2])
+    await network.provider.send("evm_increaseTime", [period+2])
     await network.provider.send("evm_mine") // this one will have 10s more
 
-    const snapshotTx = await token.snapshot();
+		expect(await token.calcWeekNumber()).to.equal(1);
+    
+	});
+	
+  it("Test snapshot exist", async function () {
+    expect(await token.existSnapshot(0)).to.be.true;
+
+    const snapshotTx = await token.newSnapshot();
     // wait until the transaction is mined
     await snapshotTx.wait();
-    let snapshotId = await token.getCurrentSnapshotId();
-    expect(snapshotId).to.equal(1);
-    // expect(snapshotId.toString()).to.equal("1");
-    // expect(snapshotId).to.equal(1);
+
+    expect(await token.existSnapshot(0)).to.be.true;
+
+	});
+	
+  xit("Test snapshot balanceOfAt", async function () {
+    //balance before mint is always equal 0
+    let balanceOf = await token.balanceOfAt(owneraddr, 0);
+		expect(balanceOf[0]).to.be.true;
+		expect(balanceOf[1]).to.equal(0);
+
+    //expect(await token.minValueOfAt(owneraddr, 0)).to.equal(0);
+
+/*
+    let snapshotTx = await token.newSnapshot();
+    // wait until the transaction is mined
+    await snapshotTx.wait();
+
+    balanceOf = await token.balanceOfAt(owneraddr, 0);
+		expect(balanceOf[0]).to.be.true;
+		expect(balanceOf[1]).to.equal("80000000000000000000000000");
+*/
+
+    snapshotTx = await token.transfer(addr1.address, ethers.utils.parseEther("50.0"));
+    // wait until the transaction is mined
+    await snapshotTx.wait();
+
+    balanceOf = await token.balanceOfAt(owneraddr, 0);
+		expect(balanceOf[0]).to.be.true;
+		expect(balanceOf[1]).to.equal("80000000000000000000000000");
+    
+    //expect(await token.balanceOfAt(addr1.address)).to.equal(ethers.utils.parseEther("50.0"));
+    balanceOf = await token.balanceOfAt(addr1.address, 0);
+		expect(balanceOf[0]).to.be.true;
+		expect(balanceOf[1]).to.equal(0);
+
+    //expect(balanceOf[1]).to.minValueOfAt(ethers.utils.parseEther("50.0"));
+
   });
 });
 
