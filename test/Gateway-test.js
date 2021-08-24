@@ -10,6 +10,12 @@ let spcb_token;
 let owneraddr;
 let owner, addr1, addr2, addr3, addrs
 let contractAsSigner0, contractAsSigner1, contractAsSigner2;
+let period = 604800;
+
+async function avance1Week() {
+	await network.provider.send("evm_increaseTime", [period + 2])
+	await network.provider.send("evm_mine") // this one will have 10s more
+}
 
 beforeEach(async function () {
 	[owner, addr1, addr2, addr3, ...addrs] = await ethers.getSigners();
@@ -37,7 +43,7 @@ beforeEach(async function () {
 
 describe("Gateway SPC", function () {
 	it("Should return the SPC balance", async function () {
-	  expect(await gateway.spcBalanceOf(contractAsSigner0.address)).to.equal(0);
+		expect(await gateway.spcBalanceOf(contractAsSigner0.address)).to.equal(0);
 	});
 });
 
@@ -49,98 +55,117 @@ describe("Gateway SPCB", function () {
 	it("Should reward the amount", async function () {
 		const balance = await gateway.spcbBalanceOf(contractAsSigner1.address);
 		const rewarding = 10;
-	
+
 		const rewardTx = await gateway.spcbReward(contractAsSigner1.address, rewarding);
 		await rewardTx.wait();
-	
+
 		expect(await gateway.spcbBalanceOf(contractAsSigner1.address)).to.equal(balance + rewarding);
 	});
 
 	it("Should burn the amount", async function () {
 		/* reward / burn / balanceof / totalsupply */
 		const rewarding = 10;
-	
+
 		const rewardTx = await gateway.spcbReward(addr1.address, rewarding);
 		await rewardTx.wait();
-	
+
 		const burnTx = await gateway.spcbBurn(addr1.address, 5);
 		await burnTx.wait();
-	
+
 		expect(await gateway.spcbBalanceOf(addr1.address)).to.equal(5);
 	});
-	
+
 });
 
 describe("Gateway functions", function () {
-	it("Should return the weekNumber", async function () {
-		expect(await gateway.getWeekNumber()).to.equal(0);
+	describe("getWeekNumber", function () {
+		it("Should return the weekNumber", async function () {
+			expect(await gateway.getWeekNumber()).to.equal(0);
+			await avance1Week();
+			expect(await gateway.getWeekNumber()).to.equal(1);
+			await avance1Week();
+			expect(await gateway.getWeekNumber()).to.equal(2);
+		});
 	});
-	
-	it("Should create the snapshot in gateway", async function () {
-		const calcReward = await gateway.calcSpcbReward(addr1.address, 100);
-		await calcReward.wait();
+	describe("calcSpcbReward", function () {
+		it("Should create the dataSnapshot in gateway", async function () {
+			const calcReward = await gateway.calcSpcbReward(addr1.address, 100);
+			await calcReward.wait();
 
-		const weekNumber = await gateway.getWeekNumber();
-		expect(await gateway.existDataSnapshop(weekNumber)).to.be.true;
+			const weekNumber = await gateway.getWeekNumber();
+			expect(await gateway.existDataSnapshot(weekNumber)).to.be.true;
+			const dataSnapshot = await gateway.dataSnapshots(weekNumber);
+			
+			expect(dataSnapshot[0]).to.be.true;	// exist
+			expect(dataSnapshot[1]).to.be.true; // todoCalc
+			expect(dataSnapshot[2]).to.equal("2000000000000000000"); // totalHoldersReward
+			expect(dataSnapshot[3]).to.equal(0); // totalSpcHolders
+		});
+
+		it("calc SPCB reward shopper", async function () {
+			// calc reward for 100 usbc
+			const calcReward = await gateway.calcSpcbReward(addr1.address, 100);
+			await calcReward.wait();
+
+			expect(await gateway.spcbBalanceOf(addr1.address)).to.equal("2000000000000000000");
+		});
+
+		it("calc SPCB reward shopper+holder", async function () {
+			// transfert 100 spc from owneraddr
+			const rewardTx = await spc_token.transfer(addr1.address, 100);
+			await rewardTx.wait();
+
+			await avance1Week();
+			await avance1Week();
+
+			// calc reward for 100 usdc
+			const calcReward = await gateway.calcSpcbReward(addr1.address, 100);
+			await calcReward.wait();
+
+			expect(await gateway.spcbBalanceOf(addr1.address)).to.equal("4000000000000000000");
+
+		});
+		it("calc reward check totalHoldersReward", async function () {
+			// calc reward for 100 usdc
+			const calcReward = await gateway.calcSpcbReward(addr1.address, 100);
+			await calcReward.wait();
+
+			const weekNumber = await gateway.getWeekNumber();
+			const dataSnapshot = await gateway.dataSnapshots(weekNumber);
+			expect(dataSnapshot[2]).to.equal("2000000000000000000");
+		});
 	});
-	
-	it("calc SPCB reward no holder", async function () {
-		// calc reward for 100 usbc
-		const calcReward = await gateway.calcSpcbReward(addr1.address, 100);
-		await calcReward.wait();
+	describe("No Holder list", function () {
+		it("add no Holder to list", async function () {
+			// add no holder
+			const addNoHolder = await gateway.addNoHolder(addr1.address);
+			await addNoHolder.wait();
 
-		expect(await gateway.spcbBalanceOf(addr1.address)).to.equal("2000000000000000000");
+			const noHolder = await gateway.noHolders(addr1.address);
+			expect(noHolder).to.be.true;
+		});
+		it("suppr no Holder in list", async function () {
+			// add no holder
+			const addNoHolder = await gateway.addNoHolder(addr1.address);
+			await addNoHolder.wait();
+
+			let noHolder = await gateway.noHolders(addr1.address);
+			expect(noHolder).to.be.true;
+
+			const delNoHolder = await gateway.delNoHolder(addr1.address);
+			await delNoHolder.wait();
+
+			noHolder = await gateway.noHolders(addr1.address);
+			expect(noHolder).to.be.false;
+
+		});
 	});
-
-	it("calc SPCB reward with holder", async function () {
-		// transfert 100 spc from owneraddr
-		const rewardTx = await spc_token.transfer(addr1.address, 100);
-		await rewardTx.wait();
-	
-		// calc reward for 100 usbc
-		const calcReward = await gateway.calcSpcbReward(addr1.address, 100);
-		await calcReward.wait();
-
-		expect(await gateway.spcbBalanceOf(addr1.address)).to.equal("4000000000000000000");
-
+	describe("Claim", function () {
+		xit("init claim", async function () {
+		});
+		xit("force claim", async function () {
+		});
 	});
-	it("calc reward check totalHoldersReward", async function () {
-		// calc reward for 100 usbc
-		const calcReward = await gateway.calcSpcbReward(addr1.address, 100);
-		await calcReward.wait();
-
-		const weekNumber = await gateway.getWeekNumber();
-		const dataSnapshot = await gateway.dataSnapshots(weekNumber);
-		expect(dataSnapshot[2]).to.equal("2000000000000000000");
-	});
-	it("add no Holder to list", async function () {
-		// add no holder
-		const addNoHolder = await gateway.addNoHolder(addr1.address);
-		await addNoHolder.wait();
-
-		const noHolder = await gateway.noHolders(addr1.address);
-		expect(noHolder).to.be.true;
-	});
-	it("suppr no Holder in list", async function () {
-		// add no holder
-		const addNoHolder = await gateway.addNoHolder(addr1.address);
-		await addNoHolder.wait();
-
-		let noHolder = await gateway.noHolders(addr1.address);
-		expect(noHolder).to.be.true;
-
-		const delNoHolder = await gateway.delNoHolder(addr1.address);
-		await delNoHolder.wait();
-
-		noHolder = await gateway.noHolders(addr1.address);
-		expect(noHolder).to.be.false;
-
-	});
-	xit("init claim", async function () {
-	});
-	xit("force claim", async function () {
-	});
-
-		//console.log("********************************");
+	//console.log("********************************");
 
 });

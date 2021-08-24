@@ -117,3 +117,5 @@ test/sample-test.js
 bin/
 .vscode/
 soljson*.js
+*.png
+*.svg

@@ -24,11 +24,15 @@ contract Gateway {
 		//uint dotValue;
 	}
 
-	uint pcentReward = 2; // pcent reward default : 2%
+	uint pcentShopperReward = 2; // pcent reward default : 2%
+	uint pcentShopperBonusReward = 2; // pcent reward default : 2%
+	uint pcentHoldersReward = 2; // pcent reward default : 2%
 	uint minimumHolding = 0; // minimum for holder to be holder
-	// boucle no holders
+
+	// define list of excluded holders not to reward 
 	mapping (address => bool) public noHolders;
 	address[] noHoldersList;
+
 	//mapping (address => mapping (uint => uint)) totalWeekNoHolder; // week => total
 	mapping (uint => uint) totalSpcHolders; // week => total
 
@@ -46,11 +50,11 @@ contract Gateway {
 		return spc_token.calcWeekNumber();
 	}
 
-	function existDataSnapshop(uint256 _snapshotId) public view returns (bool) {
+	function existDataSnapshot(uint256 _snapshotId) public view returns (bool) {
 		return dataSnapshots[_snapshotId].exist;
 	}
 
-	function newSnapshot() public returns (uint256) {
+	function newDataSnapshot() public returns (uint256) {
 		uint newId = getWeekNumber();
 		createDataSnapshot(newId);
 		//spc_token.newSnapshot();
@@ -58,11 +62,10 @@ contract Gateway {
 	}
 
 	function createDataSnapshot(uint _newId) public returns (bool) {
-		if (!existDataSnapshop(_newId)) {
+		if (!existDataSnapshot(_newId)) {
 			dataSnapshots[_newId].exist = true;
 			dataSnapshots[_newId].todoCalc = true;
 			dataSnapshots[_newId].totalHoldersReward = 0;
-			// get last snapshot for updating totalHoldersReward ??
 			return true;
 		}
 		return false;
@@ -87,7 +90,7 @@ contract Gateway {
 	/// @notice use (burn) SpendCashBack
 	/// @param _account customer address
 	/// @param _burnAmount amount to burn
-	function spcbBurn(address _account, uint _burnAmount) public /* noDapp() */ {
+	function spcbBurn(address _account, uint _burnAmount) public /* onlyDapp() */ {
 		spcb_token.burn(_account, _burnAmount);
 	}
 
@@ -98,27 +101,55 @@ contract Gateway {
 		spcb_token.reward(_account, _rewardAmount);
 	}
 
-	/// @notice calc reward SpendCashBack
+	/// @notice Explain to an end user what this does
 	/// @param _account customer address
-	/// @param _usdcAmount amount to reward
-	function calcSpcbReward(address _account, uint _usdcAmount) public /* noDapp() */ {
-		uint result = (_usdcAmount * pcentReward) * 10**16;
-		spcbReward(_account, result);
-		// total reward holder in week
+	/// @dev Explain to a developer any extra details
+	/// @return the minimum holded balance during last snapshot
+	function spcHoldedBalanceOf(address _account) private view returns (uint) {
 		uint snapshotId = getWeekNumber();
-		if (!existDataSnapshop(snapshotId)) {
-			snapshotId = newSnapshot();
+		if (snapshotId == 0) {
+			return 0;
 		}
-		dataSnapshots[snapshotId].totalHoldersReward += result;
-		// if account is holder
-		if (spcBalanceOf(_account) > minimumHolding) {
-			spcbReward(_account, result);
+		(bool boolmin, uint minValueOf) = spc_token.minValueOfAt(_account, snapshotId - 1);
+		if (boolmin) {
+			return minValueOf;
+		} else {
+			(bool boolBal, uint balanceOfAt) = spc_token.balanceOfAt(_account, snapshotId);
+			if (boolBal) {
+				return balanceOfAt;
+			}
+			return spcBalanceOf(_account);
 		}
 	}
 
-	/// @notice add no holder to list
+	/// @notice calc reward SpendCashBack
+	/// @param _account shopper address
+	/// @param _usdcAmount amount to reward
+	function calcSpcbReward(address _account, uint _usdcAmount) public /* onlyDapp() */ {
+		// reward shopper
+		uint result = (_usdcAmount * pcentShopperReward) * 10**16; // 10**16 = 10**18 / 100
+		spcbReward(_account, result);
+
+		// if shopper is holder
+		result = (_usdcAmount * pcentShopperBonusReward) * 10**16; // 10**16 = 10**18 / 100
+		uint holdedBalance = spcHoldedBalanceOf(_account);
+		if (holdedBalance > minimumHolding) {
+			spcbReward(_account, result);
+		}
+		
+		// total reward holder in week
+		uint snapshotId = getWeekNumber();
+		if (!existDataSnapshot(snapshotId)) {
+			snapshotId = newDataSnapshot();
+		}
+		result = (_usdcAmount * pcentHoldersReward) * 10**16; // 10**16 = 10**18 / 100
+		dataSnapshots[snapshotId].totalHoldersReward += result;
+	}
+
+	/// @notice add account to exclusion list no holder to list
 	/// @param _account customer address
 	function addNoHolder(address _account) public {
+		require(!noHolders[_account], "Already Holder");
 		// check list si already exist
 		uint noHoldersListLen = noHoldersList.length;
 		bool exist = false;
@@ -144,7 +175,7 @@ contract Gateway {
 	function initClaim() public {
 		uint actualWeek = getWeekNumber();
 
-		if (!existDataSnapshop(actualWeek)) {
+		if (!existDataSnapshot(actualWeek)) {
 			createDataSnapshot(actualWeek);
 		}
 
@@ -161,7 +192,7 @@ contract Gateway {
 				// check si minimum !!!!
 				// total pour semaines precedentes
 				for (uint i = actualWeek - 1; i >= 0; i--) {
-					if (!existDataSnapshop(i)) {
+					if (!existDataSnapshot(i)) {
 						createDataSnapshot(i);
 					}
 					if(!dataSnapshots[i].todoCalc) {
@@ -174,7 +205,7 @@ contract Gateway {
 		}
 
 		for (uint i = actualWeek - 1; i >= 0; i--) {
-			if (!existDataSnapshop(i)) {
+			if (!existDataSnapshot(i)) {
 				createDataSnapshot(i);
 			}
 			if(!dataSnapshots[i].todoCalc) {
@@ -221,7 +252,7 @@ contract Gateway {
 
 		// total pour semaines precedentes
 		for (uint i = actualWeek - 1; i >= lastWeekClaim; i--) {
-			if (!existDataSnapshop(i)) {
+			if (!existDataSnapshot(i)) {
 				createDataSnapshot(i);
 			}
 			if(!dataSnapshots[i].todoCalc) {
