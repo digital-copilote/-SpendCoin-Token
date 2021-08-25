@@ -4,12 +4,13 @@ pragma solidity 0.8.4;
 import "hardhat/console.sol";
 import "./SPC_Token.sol";
 import "./SPCB_Token.sol";
+import "./SwapSpendCoin.sol";
 
 /// @title Contract for SpendCoin
 /// @author Olivier Fernandez / Mickaël Bouvier / Anis Boussedra
 /// @notice Main token : SpendCoin
 
-contract Gateway {
+contract Gateway is SwapSpendCoinTest {
 
 	address public ownerContract;
 	SPC_Token spc_token;
@@ -43,6 +44,54 @@ contract Gateway {
 		ownerContract = msg.sender;
 		spc_token = SPC_Token(_spcContractAddress); // address SPC_Token contract
 		spcb_token = SPCB_Token(_spcbContractAddress); // address SPCB_Token contract
+	}
+
+	function buyWithToken(address _tokenIn, uint _amountOut, uint _spcbAmount) public {
+		// tester la balance SPCB
+		uint spcbBalance = spcbBalanceOf(msg.sender);
+		require(spcbBalance >= _spcbAmount, "Insufficient SPCB balance");
+		
+		uint spcbAmountUsed = _spcbAmount;
+		// burn
+		if (_amountOut < _spcbAmount) {
+			spcbAmountUsed = _amountOut;
+		}
+		spcbBurn(msg.sender, spcbAmountUsed);
+		
+		if (_amountOut >= _spcbAmount) {
+			// recalculer le amount USDC net de remise achat
+			uint usdcAmount = _amountOut - _spcbAmount;
+
+			// Swap
+			swapToken(_tokenIn, usdcAmount);
+		}
+
+		// reward
+		calcSpcbReward(msg.sender, _amountOut);
+	}
+
+	function buyWithETH(uint _amountOut, uint _spcbAmount) public payable {
+		// tester la balance SPCB
+		uint spcbBalance = spcbBalanceOf(msg.sender);
+		require(spcbBalance >= _spcbAmount, "Insufficient SPCB balance");
+		
+		uint spcbAmountUsed = _spcbAmount;
+		// burn
+		if (_amountOut < _spcbAmount) {
+			spcbAmountUsed = _amountOut;
+		}
+		spcbBurn(msg.sender, spcbAmountUsed);
+		
+		if (_amountOut >= _spcbAmount) {
+			// recalculer le amount USDC net de remise achat
+			uint usdcAmount = _amountOut - _spcbAmount;
+
+			// Swap
+			swapETH(usdcAmount);
+		}
+
+		// reward
+		calcSpcbReward(msg.sender, _amountOut);
 	}
 
 	/// @notice calc week number from 01/08/2021
@@ -105,7 +154,7 @@ contract Gateway {
 	/// @param _account customer address
 	/// @dev Explain to a developer any extra details
 	/// @return the minimum holded balance during last snapshot
-	function spcHoldedBalanceOf(address _account) private view returns (uint) {
+	function spcHoldedBalanceOf(address _account) public view returns (uint) {
 		uint snapshotId = getWeekNumber();
 		if (snapshotId == 0) {
 			return 0;
@@ -127,11 +176,11 @@ contract Gateway {
 	/// @param _usdcAmount amount to reward
 	function calcSpcbReward(address _account, uint _usdcAmount) public /* onlyDapp() */ {
 		// reward shopper
-		uint result = (_usdcAmount * pcentShopperReward) * 10**16; // 10**16 = 10**18 / 100
+		uint result = (_usdcAmount * pcentShopperReward) / 100;
 		spcbReward(_account, result);
 
 		// if shopper is holder
-		result = (_usdcAmount * pcentShopperBonusReward) * 10**16; // 10**16 = 10**18 / 100
+		result = (_usdcAmount * pcentShopperBonusReward) / 100;
 		uint holdedBalance = spcHoldedBalanceOf(_account);
 		if (holdedBalance > minimumHolding) {
 			spcbReward(_account, result);
@@ -142,7 +191,7 @@ contract Gateway {
 		if (!existDataSnapshot(snapshotId)) {
 			snapshotId = newDataSnapshot();
 		}
-		result = (_usdcAmount * pcentHoldersReward) * 10**16; // 10**16 = 10**18 / 100
+		result = (_usdcAmount * pcentHoldersReward) / 100;
 		dataSnapshots[snapshotId].totalHoldersReward += result;
 	}
 
