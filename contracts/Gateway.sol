@@ -29,7 +29,9 @@ contract Gateway is SwapSpendCoinTest {
 	uint pcentShopperBonusReward = 2; // pcent reward default : 2%
 	uint pcentHoldersReward = 2; // pcent reward default : 2%
 	uint minimumHolding = 0; // minimum for holder to be holder
-
+	uint[4] steps = [10, 100, 1000, 10000];
+	uint[4] pdixmillFeeDiscounts = [25, 50, 100, 200];
+	
 	// define list of excluded holders not to reward 
 	mapping (address => bool) public noHolders;
 	address[] noHoldersList;
@@ -46,7 +48,7 @@ contract Gateway is SwapSpendCoinTest {
 		spcb_token = SPCB_Token(_spcbContractAddress); // address SPCB_Token contract
 	}
 
-	function buyWithToken(address _tokenIn, uint _amountOut, uint _spcbAmount) public {
+	function buy(address _tokenIn, uint _amountOut, uint _spcbAmount) public {
 		// tester la balance SPCB
 		uint spcbBalance = spcbBalanceOf(msg.sender);
 		require(spcbBalance >= _spcbAmount, "Insufficient SPCB balance");
@@ -60,38 +62,34 @@ contract Gateway is SwapSpendCoinTest {
 		
 		if (_amountOut >= _spcbAmount) {
 			// recalculer le amount USDC net de remise achat
-			uint usdcAmount = _amountOut - _spcbAmount;
+			uint usdcAmount = _amountOut - _spcbAmount + feeDiscount(_amountOut);
 
 			// Swap
-			swapToken(_tokenIn, usdcAmount);
+			if (_tokenIn != address(0)) {
+				swapToken(_tokenIn, usdcAmount);
+			}
+			else {
+				swapETH(usdcAmount);
+			}
 		}
 
 		// reward
 		calcSpcbReward(msg.sender, _amountOut);
 	}
+	
+	function feeDiscount(uint _amountOut) public view returns (uint) {
+		uint pdixmillFeeDiscount = 0;
+		uint spcHoldedBalance = spcHoldedBalanceOf(msg.sender);
 
-	function buyWithETH(uint _amountOut, uint _spcbAmount) public payable {
-		// tester la balance SPCB
-		uint spcbBalance = spcbBalanceOf(msg.sender);
-		require(spcbBalance >= _spcbAmount, "Insufficient SPCB balance");
-		
-		uint spcbAmountUsed = _spcbAmount;
-		// burn
-		if (_amountOut < _spcbAmount) {
-			spcbAmountUsed = _amountOut;
+		for (uint i = 0; i < steps.length; i++) {
+			if (spcHoldedBalance >= steps[i]) {
+				pdixmillFeeDiscount = pdixmillFeeDiscounts[i];
+			}
+			else break;
 		}
-		spcbBurn(msg.sender, spcbAmountUsed);
-		
-		if (_amountOut >= _spcbAmount) {
-			// recalculer le amount USDC net de remise achat
-			uint usdcAmount = _amountOut - _spcbAmount;
+		uint feeDiscountAmount = pdixmillFeeDiscount * _amountOut / 10000;
 
-			// Swap
-			swapETH(usdcAmount);
-		}
-
-		// reward
-		calcSpcbReward(msg.sender, _amountOut);
+		return feeDiscountAmount;
 	}
 
 	/// @notice calc week number from 01/08/2021
